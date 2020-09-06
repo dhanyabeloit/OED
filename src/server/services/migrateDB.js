@@ -10,13 +10,16 @@ const { ask, terminateReadline } = require('./utils');
 const { findMaxSemanticVersion } = require('../util');
 const { showPossibleMigrations, migrateAll, getUniqueVersions } = require('../migrations/migrateDatabase');
 const migrationList = require('../migrations/registerMigration');
+const { getConnection, dropConnection } = require('../db');
 
 function findMaxVersion(list) {
 	return findMaxSemanticVersion(getUniqueVersions(list));
 }
 
 (async () => {
-	let toVersion;
+	// Set toVersion to unacceptable value. Coverity Scan thinks it is not set but logic below seems to
+	// always set of call terminateReadline that stops to process. This should fix this.
+	let toVersion = '0.0.0';
 
 	// If there aren't enough args, go interactive.
 	const cmdArgs = process.argv;
@@ -43,12 +46,14 @@ function findMaxVersion(list) {
 		}
 	}
 
+	const conn = getConnection();
 	try {
-		const currentVersion = await Migration.getCurrentVersion();
+		await Migration.createTable(conn, insertDefault = false);
+		const currentVersion = await Migration.getCurrentVersion(conn);
 		if (currentVersion === toVersion) {
 			terminateReadline(`Cannot migrate. You already have the highest version ${currentVersion}`);
 		} else {
-			const result = await migrateAll(toVersion, migrationList);
+			const result = await migrateAll(toVersion, migrationList, conn);
 			if (result !== undefined) {
 				terminateReadline('Migration successful');
 			} else {
@@ -61,3 +66,4 @@ function findMaxVersion(list) {
 		terminateReadline('Migration failed');
 	}
 })();
+

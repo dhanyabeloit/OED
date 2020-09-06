@@ -48,13 +48,16 @@ export function calculateCompareTimeInterval(comparePeriod: ComparePeriod, curre
 	let compareTimeInterval;
 	switch (comparePeriod) {
 		case ComparePeriod.Day:
-			compareTimeInterval = new TimeInterval(moment().subtract(2, 'days'), currentTime);
+			// TimeInterval for today 12 am to current time
+			compareTimeInterval = new TimeInterval(moment().startOf('day'), currentTime);
 			break;
 		case ComparePeriod.Week:
-			compareTimeInterval = new TimeInterval(moment().startOf('week').subtract(7, 'days'), currentTime);
+			// TimeInterval for this week, from last Sunday 12 am to current time
+			compareTimeInterval = new TimeInterval(moment().startOf('week'), currentTime);
 			break;
 		case ComparePeriod.FourWeeks:
-			compareTimeInterval = new TimeInterval(moment().startOf('week').subtract(49, 'days'), currentTime);
+			// TimeInterval for this 4 weeks period
+			compareTimeInterval = new TimeInterval(moment().startOf('week').subtract(3, 'weeks'), currentTime);
 			break;
 		default:
 			throw new Error(`Unknown period value: ${comparePeriod}`);
@@ -79,6 +82,25 @@ export function calculateCompareDuration(comparePeriod: ComparePeriod): moment.D
 			throw new Error(`Unknown period value: ${comparePeriod}`);
 	}
 	return compareDuration;
+}
+
+export function calculateCompareShift(comparePeriod: ComparePeriod): moment.Duration {
+	let compareShift;
+	switch (comparePeriod) {
+		case ComparePeriod.Day:
+			// fetch hours for accuracy when time interval is small
+			compareShift = moment.duration(1, 'days');
+			break;
+		case ComparePeriod.Week:
+			compareShift = moment.duration(7, 'days');
+			break;
+		case ComparePeriod.FourWeeks:
+			compareShift = moment.duration(28, 'days');
+			break;
+		default:
+			throw new Error(`Unknown period value: ${comparePeriod}`);
+	}
+	return compareShift;
 }
 
 export interface ComparePeriodLabels {
@@ -106,13 +128,13 @@ export function getComparePeriodLabels(comparePeriod: ComparePeriod): ComparePer
 
 /**
  * Composes a label to summarize compare chart data.
- * @param change the radio of change between the current and previous period
+ * @param change the ratio of change between the current and previous period
  * @param name the name of the entity being measured
  * @param labels the names of the periods in question
  */
 export function getCompareChangeSummary(change: number, name: string, labels: ComparePeriodLabels): string {
 	if (isNaN(change)) { return ''; }
-	const percent = parseInt(change.toFixed(2).replace('.', '').slice(1));
+	const percent = parseInt(change.toFixed(2).replace('.', ''));
 	if (change < 0) {
 		return `${name} ${translate('has.used')} ${percent}% ${translate('less.energy')} ${labels.current.toLocaleLowerCase()}`;
 	} else {

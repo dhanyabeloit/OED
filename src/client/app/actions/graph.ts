@@ -6,7 +6,8 @@ import * as moment from 'moment';
 import { fetchMetersDetailsIfNeeded } from './meters';
 import { fetchGroupsDetailsIfNeeded } from './groups';
 import { fetchNeededLineReadings } from './lineReadings';
-import { fetchNeededBarReadings, fetchNeededCompareReadings } from './barReadings';
+import { fetchNeededBarReadings } from './barReadings';
+import { fetchNeededCompareReadings } from './compareReadings';
 import { TimeInterval } from '../../../common/TimeInterval';
 import { Dispatch, Thunk, ActionType } from '../types/redux/actions';
 import { State } from '../types/redux/state';
@@ -121,7 +122,7 @@ function shouldChangeGraphZoom(state: State, timeInterval: TimeInterval): boolea
 
 export function changeGraphZoomIfNeeded(timeInterval: TimeInterval): Thunk {
 	return (dispatch, getState) => {
-		if (shouldChangeGraphZoom(getState(), TimeInterval.unbounded())) {
+		if (shouldChangeGraphZoom(getState(), timeInterval)) {
 			dispatch(changeGraphZoom(timeInterval));
 			dispatch(fetchNeededReadingsForGraph(timeInterval));
 		}

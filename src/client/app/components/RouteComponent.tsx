@@ -3,11 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import * as React from 'react';
-import { Router, Route, browserHistory, RedirectFunction, RouterState } from 'react-router';
+import { Router, Route, RedirectFunction, RouterState } from 'react-router';
 import { addLocaleData, IntlProvider } from 'react-intl';
 import * as en from 'react-intl/locale-data/en';
 import * as fr from 'react-intl/locale-data/fr';
 import * as localeData from '../translations/data.json';
+import { browserHistory } from '../utils/history';
 import * as _ from 'lodash';
 import * as moment from 'moment';
 import InitializationContainer from '../containers/InitializationContainer';
@@ -25,6 +26,7 @@ import { validateComparePeriod, validateSortingOrder } from '../utils/calculateC
 import EditGroupsContainer from '../containers/groups/EditGroupsContainer';
 import CreateGroupContainer from '../containers/groups/CreateGroupContainer';
 import GroupsDetailContainer from '../containers/groups/GroupsDetailContainer';
+import MetersDetailContainer from '../containers/meters/MetersDetailContainer';
 
 interface RouteProps {
 	barStacking: boolean;
@@ -67,6 +69,32 @@ export default class RouteComponent extends React.Component<RouteProps, {}> {
 	}
 
 	/**
+	 * Middleware function that checks proper authentication for a page route
+	 * @param nextState The next state of the router
+	 * @param replace Function that allows a route redirect
+	 */
+	public checkAuth(nextState: RouterState, replace: RedirectFunction) {
+		function redirectRoute() {
+			replace({
+				pathname: '/login',
+				state: { nextPathname: nextState.location.pathname }
+			});
+		}
+		// Only check the token if the auth token does not exist
+		if (hasToken()) {
+			// Verify that the auth token is valid.
+			// Needs to be async because of the network request
+			(async () => {
+				if (!(await verificationApi.checkTokenValid())) {
+					// Route to login page if the auth token is not valid
+					showErrorNotification(translate('invalid.token.login.or.logout'));
+					browserHistory.push('/login');
+				}
+			})();
+		}
+	}
+
+	/**
 	 * Middleware function that allows hotlinking to a graph with options
 	 * @param nextState The next state of the router
 	 * @param replace Function that allows a route redirect
@@ -77,7 +105,17 @@ export default class RouteComponent extends React.Component<RouteProps, {}> {
 			try {
 				const options: LinkOptions = {};
 				for (const [key, infoObj] of _.entries(queries)) {
-					const info: string = infoObj.toString();
+					// TODO The upgrade of TypeScript lead to it giving an error for the type of infoObj
+					// which it thinks is unknown. I'm not sure why and this is code from the history
+					// package (see modules/@types/history/index.d.ts). What follows is a hack where
+					// the type is cast to any. This removes the problem and also allowed the removal
+					// of the ! to avoid calling toString when it is a bad value. I think this is okay
+					// because the toString documentation indicates it works fine with any type including
+					// null and unknown. If it does convert then the default case will catch it as an error.
+					// I want to get rid of this issue so Travis testing is not stopped by this. However,
+					// we should look into this typing issue more to see what might be a better fix.
+					const fixTypeIssue: any = infoObj as any;
+					const info: string = fixTypeIssue.toString();
 					switch (key) {
 						case 'meterIDs':
 							options.meterIDs = info.split(',').map(s => parseInt(s));
@@ -89,7 +127,7 @@ export default class RouteComponent extends React.Component<RouteProps, {}> {
 							options.chartType = info as ChartTypes;
 							break;
 						case 'barDuration':
-							options.barDuration = moment.duration(parseInt(info));
+							options.barDuration = moment.duration(parseInt(info), 'days');
 							break;
 						case 'barStacking':
 							if (this.props.barStacking.toString() !== info) {
@@ -130,6 +168,8 @@ export default class RouteComponent extends React.Component<RouteProps, {}> {
 		let messages;
 		if (lang === 'fr') {
 			messages = (localeData as any).fr;
+		} else if (lang === 'es') {
+			messages = (localeData as any).es;
 		} else {
 			messages = (localeData as any).en;
 		}
@@ -140,7 +180,8 @@ export default class RouteComponent extends React.Component<RouteProps, {}> {
 					<Router history={browserHistory}>
 						<Route path='/login' component={LoginComponent} />
 						<Route path='/admin' component={AdminComponent} onEnter={this.requireAuth} />
-						<Route path='/groups' component={GroupsDetailContainer} />
+						<Route path='/groups' component={GroupsDetailContainer} onEnter={this.checkAuth} />
+						<Route path='/meters' component={MetersDetailContainer} onEnter={this.checkAuth} />
 						<Route path='/graph' component={HomeComponent} onEnter={this.linkToGraph} />
 						<Route path='/createGroup' component={CreateGroupContainer} onEnter={this.requireAuth} />
 						<Route path='/editGroup' component={EditGroupsContainer} onEnter={this.requireAuth} />

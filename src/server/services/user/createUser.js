@@ -6,10 +6,13 @@ const bcrypt = require('bcryptjs');
 const User = require('../../models/User');
 const { validateEmail } = require('./utils');
 const { ask, terminateReadline } = require('../utils');
+const { getConnection, dropConnection } = require('../../db');
 
 (async () => {
 	let email;
-	let password;
+	// Set password to unused value. Coverity Scan thinks it is not set but logic below seems to
+	// always set of call terminateReadline that stops to process. This should fix this.
+	let password = 'whatever';
 
 	// If there aren't enough args, go interactive.
 	const cmdArgs = process.argv;
@@ -35,10 +38,13 @@ const { ask, terminateReadline } = require('../utils');
 
 	const passwordHash = bcrypt.hashSync(password, 10);
 	const admin = new User(undefined, email, passwordHash);
+	const conn = getConnection();
 	try {
-		await admin.insert();
+		await admin.insert(conn);
 		terminateReadline('User created');
 	} catch (err) {
 		terminateReadline('User already exists, no additional user created');
+	} finally {
+		dropConnection();
 	}
 })();
